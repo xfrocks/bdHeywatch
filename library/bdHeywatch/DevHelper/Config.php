@@ -23,7 +23,11 @@ class bdHeywatch_DevHelper_Config extends DevHelper_Config_Base
 			'files' => array('data_writer' => false, 'model' => false, 'route_prefix_admin' => false, 'controller_admin' => false),
 		),
 	);
-	protected $_dataPatches = array();
+	protected $_dataPatches = array(
+		'xf_attachment_data' => array(
+			'bdheywatch_options' => array('name' => 'bdheywatch_options', 'type' => 'serialized'),
+		),
+	);
 	protected $_exportPath = '/Users/sondh/XenForo/_InSocial/bdHeywatch';
 	protected $_exportIncludes = array();
 

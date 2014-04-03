@@ -73,20 +73,42 @@ class bdHeywatch_Helper_Api
 			throw new XenForo_Exception('s3Bucket not found');
 		}
 
-		$ini['robot:env']['output_url'] = sprintf('s3://%s:%s@%s/${post:download::title}', $s3Key, $s3Secret, $s3Bucket);
-		$ini['robot:env']['filename'] = $fileName;
+		if (empty($pingParams))
+		{
+			$pingParams = array();
+		}
+		$jobDirectory = date('Y/m', XenForo_Application::$time);
+		$uniqueId = XenForo_Application::getConfig()->get('globalSalt') . XenForo_Application::$time;
+		$pingParams['jobs'] = array();
+
+		$ini['robot:env']['output_url'] = sprintf('s3://%s:%s@%s', $s3Key, $s3Secret, $s3Bucket);
 
 		$ini['post:download']['url'] = $url;
-		$ini['post:download']['title'] = '${robot:env::filename}';
 
-		foreach (array_values($formats) as $i => $format)
+		$ini['post:download']['get:video']['id'] = '${post:download:ping::video_id}';
+
+		$format = 'thumbnail';
+		$jobFileName = sprintf('%s_%s_#num#', $fileName, md5($format . $uniqueId));
+		$ini['post:download']['get:video']['post:preview/thumbnails']['media_id'] = '${post:download:ping::video_id}';
+		$ini['post:download']['get:video']['post:preview/thumbnails']['output_url'] = sprintf('${robot:env::output_url}/%s', $jobDirectory);
+		$ini['post:download']['get:video']['post:preview/thumbnails']['filename'] = $jobFileName;
+		$ini['post:download']['get:video']['post:preview/thumbnails']['width'] = '${get:video::specs.video.width}';
+		$ini['post:download']['get:video']['post:preview/thumbnails']['height'] = '${get:video::specs.video.height}';
+
+		foreach (array_values(array_unique($formats)) as $i => $format)
 		{
-			$ini['post:download']['post:job:' . $i]['video_id'] = '${post:download:ping::video_id}';
-			$ini['post:download']['post:job:' . $i]['format_id'] = $format;
-			$ini['post:download']['post:job:' . $i]['output_url'] = sprintf('${robot:env::output_url}/%s/${robot:env::filename}.%s', $format, self::getContainerFromDynamicFormatId($format));
+			$jobId = sprintf('post:job:%d', $i);
+			$jobFileName = sprintf('%s_%s.%s', $fileName, md5($format . $uniqueId), self::getContainerFromDynamicFormatId($format));
+
+			$ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
+			$ini['post:download'][$jobId]['format_id'] = $format;
+			$ini['post:download'][$jobId]['keep_video_size'] = 'true';
+			$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
+
+			$pingParams['jobs'][$format] = $jobFileName;
 		}
 
-		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping');
+		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
 
 		return self::robotIniFromArray($ini);
 	}

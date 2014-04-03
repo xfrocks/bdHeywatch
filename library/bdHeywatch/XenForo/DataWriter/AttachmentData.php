@@ -2,6 +2,17 @@
 
 class bdHeywatch_XenForo_DataWriter_AttachmentData extends XFCP_bdHeywatch_XenForo_DataWriter_AttachmentData
 {
+	protected function _getFields()
+	{
+		$fields = parent::_getFields();
+
+		$fields['xf_attachment_data']['bdheywatch_options'] = array(
+			'type' => XenForo_DataWriter::TYPE_SERIALIZED,
+			'default' => 'a:0:{}',
+		);
+
+		return $fields;
+	}
 
 	protected function _postSaveAfterTransaction()
 	{

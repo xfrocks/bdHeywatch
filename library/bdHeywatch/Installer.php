@@ -18,7 +18,16 @@ class bdHeywatch_Installer
 			'dropQuery' => 'DROP TABLE IF EXISTS `xf_bdheywatch_log`',
 		),
 	);
-	protected static $_patches = array();
+	protected static $_patches = array(
+		array(
+			'table' => 'xf_attachment_data',
+			'field' => 'bdheywatch_options',
+			'showTablesQuery' => 'SHOW TABLES LIKE \'xf_attachment_data\'',
+			'showColumnsQuery' => 'SHOW COLUMNS FROM `xf_attachment_data` LIKE \'bdheywatch_options\'',
+			'alterTableAddColumnQuery' => 'ALTER TABLE `xf_attachment_data` ADD COLUMN `bdheywatch_options` MEDIUMBLOB',
+			'alterTableDropColumnQuery' => 'ALTER TABLE `xf_attachment_data` DROP COLUMN `bdheywatch_options`',
+		),
+	);
 
 	public static function install($existingAddOn, $addOnData)
 	{

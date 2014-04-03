@@ -7,7 +7,9 @@
   <admin_template_modifications/>
   <code_events/>
   <code_event_listeners>
+    <listener event_id="init_dependencies" execute_order="10" callback_class="bdHeywatch_Listener" callback_method="init_dependencies" active="1" hint="" description=""/>
     <listener event_id="load_class" execute_order="10" callback_class="bdHeywatch_Listener" callback_method="load_class" active="1" hint="" description=""/>
+    <listener event_id="template_hook" execute_order="10" callback_class="bdHeywatch_Listener" callback_method="template_hook" active="1" hint="page_container_head" description="page_container_head"/>
   </code_event_listeners>
   <cron/>
   <email_templates/>
@@ -96,8 +98,46 @@ sa-east-1=Sao Paolo</edit_format_params>
   </phrases>
   <route_prefixes/>
   <style_properties/>
-  <templates/>
-  <public_template_modifications/>
+  <templates>
+    <template title="bdheywatch_attached_videos" version_id="1" version_string="0.9-dev"><![CDATA[<xen:foreach loop="$videos" value="$video">
+	<xen:if is="{$video.bdheywatch_options}">
+		<xen:include template="bdheywatch_video" />
+	</xen:if>
+</xen:foreach>]]></template>
+    <template title="bdheywatch_video" version_id="1" version_string="0.9-dev"><![CDATA[<xen:require js="js/bdHeywatch/video-js/video.js" />
+
+<video id="video-{$video.attachment_id}"
+	   class="video-js vjs-default-skin"
+	   {xen:if '{$video.bdheywatch_options.thumbnails.0}', 'poster="{$video.bdheywatch_options.thumbnails.0}"'}
+	   {xen:if '{$video.bdheywatch_options.width} AND {$video.bdheywatch_options.height}', 'width="{$video.bdheywatch_options.width}" height="{$video.bdheywatch_options.height}"', 'width="720" height="480"'}
+	   controls preload="auto">
+	<xen:foreach loop="$video.bdheywatch_options.formats" key="$format" value="$url">
+		<source src="{$url}" type="{xen:helper bdHeywatch_getMime, $format}" />
+	</xen:foreach>
+</video>]]></template>
+  </templates>
+  <public_template_modifications>
+    <modification template="bb_code_tag_attach" modification_key="bdheywatch_bb_code_tag_attach" description="Render video inserted into post" execution_order="10" enabled="1" action="preg_replace">
+      <find><![CDATA[#^.+$#s]]></find>
+      <replace><![CDATA[<xen:if is="{$validAttachment} AND {$canView} AND {$attachment.bdheywatch_options}">
+
+	<xen:include template="bdheywatch_video">
+		<xen:map from="$attachment" to="$video" />
+	</xen:include>
+
+<xen:else />
+
+$0
+
+</xen:if>]]></replace>
+    </modification>
+    <modification template="post" modification_key="bdheywatch_post_videos" description="Render videos at the bottom of the post" execution_order="10" enabled="1" action="str_replace">
+      <find><![CDATA[<xen:set var="$messageContentAfterTemplate">]]></find>
+      <replace><![CDATA[$0<xen:if is="{$post.bdHeywatch_videos}"><xen:include template="bdheywatch_attached_videos">
+	<xen:map from="$post.bdHeywatch_videos" to="$videos" />
+</xen:include></xen:if>]]></replace>
+    </modification>
+  </public_template_modifications>
   <bb_code_media_sites/>
   <bb_codes/>
 </addon>
