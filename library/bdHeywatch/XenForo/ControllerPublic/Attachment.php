@@ -12,6 +12,7 @@ class bdHeywatch_XenForo_ControllerPublic_Attachment extends XFCP_bdHeywatch_Xen
 		{
 			return $this->responseNoPermission();
 		}
+		$attachmentModel->logAttachmentView($attachmentId);
 
 		$height = $this->_input->filterSingle('height', XenForo_Input::UINT);
 		$this->canonicalizeRequestUrl(XenForo_Link::buildPublicLink('attachments/watch', $attachment, array('height' => $height)));
