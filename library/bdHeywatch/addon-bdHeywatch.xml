@@ -75,11 +75,17 @@ sa-east-1=Sao Paolo</edit_format_params>
   </optiongroups>
   <permissions>
     <permission_groups/>
-    <permissions/>
+    <permissions>
+      <permission permission_group_id="general" permission_id="bdHeywatch_maxHeight" permission_type="integer" default_value_int="0" interface_group_id="generalPermissions" display_order="9999"/>
+    </permissions>
     <interface_groups/>
   </permissions>
   <phrases>
+    <phrase title="bdheywatch_best_quality_video_x_height_y_upgrade_to_watch" version_id="2" version_string="0.9.1"><![CDATA[Best quality of this video is {height}p, <a href="{link}">upgrade your account</a> to watch it.]]></phrase>
+    <phrase title="bdheywatch_quality_x_height" version_id="2" version_string="0.9.1"><![CDATA[{height}p]]></phrase>
+    <phrase title="bdheywatch_video_x_access_denied" version_id="2" version_string="0.9.1"><![CDATA[You have no permission to watch this video.]]></phrase>
     <phrase title="bdheywatch_video_x_is_being_processed" version_id="2" version_string="0.9.1"><![CDATA[Video is being processed.]]></phrase>
+    <phrase title="bdheywatch_watch_video_x_other_quality" version_id="2" version_string="0.9.1"><![CDATA[Also available in]]></phrase>
     <phrase title="option_bdHeywatch_apiKey" version_id="1" version_string="0.9-dev"><![CDATA[Heywatch API Key]]></phrase>
     <phrase title="option_bdHeywatch_apiKey_explain" version_id="1" version_string="0.9-dev"><![CDATA[Enter your API Key for Heywatch. You need to register at their website and verify account to have production API Key (or your transcoded video will be cut after 5 seconds). The API Key should be available at <a href="https://app.heywatch.com/settings/api_keys" target="_blank" tabindex="-1">this page</a>.]]></phrase>
     <phrase title="option_bdHeywatch_inputExtensions" version_id="1" version_string="0.9-dev"><![CDATA[Source Extensions]]></phrase>
@@ -96,27 +102,42 @@ sa-east-1=Sao Paolo</edit_format_params>
     <phrase title="option_bdHeywatch_s3Secret_explain" version_id="1" version_string="0.9-dev"><![CDATA[]]></phrase>
     <phrase title="option_group_bdHeywatch" version_id="1" version_string="0.9-dev"><![CDATA[[bd] Heywatch Integration]]></phrase>
     <phrase title="option_group_bdHeywatch_description" version_id="1" version_string="0.9-dev"><![CDATA[]]></phrase>
+    <phrase title="permission_general_bdHeywatch_maxHeight" version_id="2" version_string="0.9.1"><![CDATA[Video Height can watch]]></phrase>
   </phrases>
   <route_prefixes/>
   <style_properties/>
   <templates>
-    <template title="bdheywatch.css" version_id="2" version_string="0.9.1"><![CDATA[.bdHeywatch_video
+    <template title="bdheywatch.css" version_id="2" version_string="0.9.1"><![CDATA[.bdHeywatch_videoContainer
+{
+	margin: 0 auto;
+	max-width: 100%;
+	width: 480px;
+}
+
+.bdHeywatch_video
 {
 	background: black;
 	color: white;
-}
-
-.bdHeywatch_video.being-processed
-{
 	height: 360px;
 	max-width: 100%;
 	width: 480px;
 }
-	.bdHeywatch_video.being-processed p
-	{
-		padding-top: 170px;
-		text-align: center;
-	}
+
+.bdHeywatch_video.placeholder p
+{
+	padding-top: 170px;
+	text-align: center;
+}
+
+.bdHeywatch_watchLinks
+{
+	width: 100%;
+}
+
+.bdHeywatch_watchLinks > li
+{
+	display: inline;
+}
 
 .bdHeywatch_videoSimple.being-processed .thumbnail .genericAttachment
 {
@@ -147,22 +168,83 @@ sa-east-1=Sao Paolo</edit_format_params>
 		<xen:include template="bdheywatch_video" />
 	</xen:if>
 </xen:foreach>]]></template>
+    <template title="bdheywatch_attachment_watch" version_id="2" version_string="0.9.1"><![CDATA[<xen:title>{$video.filename}</xen:title>
+
+<div class="sectionMain">
+	<div class="primaryContent">
+		<xen:include template="bdheywatch_video">
+			<xen:set var="$viewHeight">{$height}</xen:set>
+		</xen:include>
+	</div>
+</div>]]></template>
     <template title="bdheywatch_video" version_id="2" version_string="0.9.1"><![CDATA[<xen:require css="bdheywatch.css" />
 
 <xen:if is="{$video.bdheywatch_options.processed}">
-	<xen:require js="js/bdHeywatch/video-js/video.js" />
+	<xen:set var="$bestVideoHeight">{xen:helper bdHeywatch_getBestVideoHeight, $video.bdheywatch_options.formats}</xen:set>
+	<xen:set var="$bestViewableHeight">{xen:helper bdHeywatch_getBestViewableHeight, $video.bdheywatch_options.formats}</xen:set>
+	<xen:if is="!{$viewHeight}">
+		<xen:set var="$viewHeight">{$bestViewableHeight}</xen:set>
+	</xen:if>
 
-	<video id="video-{$video.attachment_id}"
-		   class="bdHeywatch_video video-js vjs-default-skin"
-		   {xen:if '{$video.bdheywatch_options.thumbnails.0}', 'poster="{$video.bdheywatch_options.thumbnails.0}"'}
-		   {xen:if '{$video.bdheywatch_options.width} AND {$video.bdheywatch_options.height}', 'width="{$video.bdheywatch_options.width}" height="{$video.bdheywatch_options.height}"', 'width="720" height="480"'}
-		   controls preload="auto">
-		<xen:foreach loop="$video.bdheywatch_options.formats" key="$format" value="$url">
-			<source src="{$url}" type="{xen:helper bdHeywatch_getMime, $format}" />
-		</xen:foreach>
-	</video>
+	<div class="bdHeywatch_videoContainer">
+
+		<xen:if hascontent="true">
+			<xen:require js="js/bdHeywatch/video-js/video.js" />
+			<video id="video-{$video.attachment_id}"
+				   class="bdHeywatch_video video-js vjs-default-skin height-{$viewHeight}"
+				   {xen:if '{$video.bdheywatch_options.thumbnails.0}', 'poster="{$video.bdheywatch_options.thumbnails.0}"'}
+				   controls preload="auto">
+				<xen:contentcheck>
+					<xen:foreach loop="$video.bdheywatch_options.formats" value="$format">
+						<xen:if is="{$format.output_url}
+									AND {$format.height} <= {$bestViewableHeight}
+									AND {$format.height} == {$viewHeight}">
+							<source src="{$format.output_url}" type="{xen:helper bdHeywatch_getMime, $format.format_id}" />
+						</xen:if>
+					</xen:foreach>
+				</xen:contentcheck>
+			</video>
+		<xen:else />
+			<div id="video-{$video.attachment_id}" class="bdHeywatch_video placeholder access-denied">
+				<p>{xen:phrase bdheywatch_video_x_access_denied, 'video={$video.filename}'}</p>
+			</div>
+		</xen:if>
+
+		<xen:if is="!{$hideWatchLinks}">
+			<xen:if hascontent="true">
+				<ul class="bdHeywatch_watchLinks">
+					<li class="label">{xen:phrase bdheywatch_watch_video_x_other_quality}:</li>
+					<xen:contentcheck>
+						<xen:set var="$watchLinks.{$viewHeight}">1</xen:set>
+						<xen:foreach loop="$video.bdheywatch_options.formats" value="$format">
+							<xen:if is="empty({$watchLinks.{$format.height}})
+										AND {$format.output_url}
+										AND {$format.height} <= {$bestViewableHeight}">
+								<li class="link"><a href="{xen:link attachments/watch, $video, 'height={$format.height}'}" class="OverlayTrigger">
+									{xen:phrase bdheywatch_quality_x_height, 'height={$format.height}'}
+								</a></li>
+								<xen:set var="{$watchLinks.{$format.height}}">1</xen:set>
+							</xen:if>
+						</xen:foreach>
+					</xen:contentcheck>
+				</ul>
+			</xen:if>
+		</xen:if>
+		
+		<xen:if is="!{$hideUserUpgradeLinks}">
+			<xen:if is="{$bestViewableHeight} < {$bestVideoHeight}">
+				<p class="bdHeywatch_upgradeLink">
+					{xen:phrase bdheywatch_best_quality_video_x_height_y_upgrade_to_watch,
+						'video={$video.filename}',
+						'height={$bestVideoHeight}',
+						'link={xen:link account/upgrades}'}
+				</p>
+			</xen:if>
+		</xen:if>
+
+	</div>
 <xen:else />
-	<div id="video-{$video.attachment_id}" class="bdHeywatch_video being-processed">
+	<div id="video-{$video.attachment_id}" class="bdHeywatch_video placeholder being-processed">
 		<p>{xen:phrase bdheywatch_video_x_is_being_processed, 'video={$video.filename}'}</p>
 	</div>
 </xen:if>]]></template>

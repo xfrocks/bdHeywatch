@@ -27,6 +27,13 @@ class bdHeywatch_Helper_Api
 		$parts = explode('_', $format);
 		$container = array_shift($parts);
 
+		if (strpos($container, ':') !== false)
+		{
+			// vcodec and/or acodec are included
+			$containerParts = explode(':', $container);
+			$container = array_shift($containerParts);
+		}
+
 		foreach ($containerAliases as $_container => $aliases)
 		{
 			foreach ($aliases as $alias)
@@ -39,6 +46,26 @@ class bdHeywatch_Helper_Api
 		}
 
 		return $container;
+	}
+
+	public static function getHeightFromDynamicFormatId($format)
+	{
+		$height = 0;
+		$parts = explode('_', $format);
+
+		foreach ($parts as $part)
+		{
+			if (preg_match('/^(\d+)(p|i)$/', $part, $matches))
+			{
+				$height = intval($matches[1]);
+			}
+			elseif (preg_match('/^(\d+)x(\d+)$/', $part, $matches))
+			{
+				$height = intval($matches[2]);
+			}
+		}
+
+		return $height;
 	}
 
 	public static function robotIniArray($url, $fileName, $formats, $params = array())
@@ -79,7 +106,6 @@ class bdHeywatch_Helper_Api
 		}
 		$jobDirectory = date('Y/m', XenForo_Application::$time);
 		$uniqueId = XenForo_Application::getConfig()->get('globalSalt') . XenForo_Application::$time;
-		$pingParams['jobs'] = array();
 
 		$ini['robot:env']['output_url'] = sprintf('s3://%s:%s@%s', $s3Key, $s3Secret, $s3Bucket);
 
@@ -87,13 +113,12 @@ class bdHeywatch_Helper_Api
 
 		$ini['post:download']['get:video']['id'] = '${post:download:ping::video_id}';
 
-		$format = 'thumbnail';
-		$jobFileName = sprintf('%s_%s_#num#', $fileName, md5($format . $uniqueId));
-		$ini['post:download']['get:video']['post:preview/thumbnails']['media_id'] = '${post:download:ping::video_id}';
-		$ini['post:download']['get:video']['post:preview/thumbnails']['output_url'] = sprintf('${robot:env::output_url}/%s', $jobDirectory);
-		$ini['post:download']['get:video']['post:preview/thumbnails']['filename'] = $jobFileName;
-		$ini['post:download']['get:video']['post:preview/thumbnails']['width'] = '${get:video::specs.video.width}';
-		$ini['post:download']['get:video']['post:preview/thumbnails']['height'] = '${get:video::specs.video.height}';
+		$format = 'animation';
+		$jobFileName = sprintf('%s_%s', $fileName, md5($format . $uniqueId));
+		$ini['post:download']['post:preview/animation']['media_id'] = '${post:download:ping::video_id}';
+		$ini['post:download']['post:preview/animation']['output_url'] = sprintf('${robot:env::output_url}/%s', $jobDirectory);
+		$ini['post:download']['post:preview/animation']['filename'] = $jobFileName;
+		$ini['post:download']['post:preview/animation']['width'] = '400';
 
 		foreach (array_values(array_unique($formats)) as $i => $format)
 		{
@@ -102,10 +127,18 @@ class bdHeywatch_Helper_Api
 
 			$ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
 			$ini['post:download'][$jobId]['format_id'] = $format;
-			$ini['post:download'][$jobId]['keep_video_size'] = 'true';
-			$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
 
-			$pingParams['jobs'][$format] = $jobFileName;
+			$jobHeight = self::getHeightFromDynamicFormatId($format);
+			if ($jobHeight == 0)
+			{
+				$ini['post:download'][$jobId]['keep_video_size'] = 'true';
+			}
+			else
+			{
+				$ini['post:download'][$jobId]['_skip_if'] = sprintf('${get:video::specs.video.height} < %d', $jobHeight);
+			}
+
+			$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
 		}
 
 		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);

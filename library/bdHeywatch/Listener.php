@@ -5,6 +5,7 @@ class bdHeywatch_Listener
 	public static function load_class($class, array &$extend)
 	{
 		static $classes = array(
+			'XenForo_ControllerPublic_Attachment',
 			'XenForo_ControllerPublic_Misc',
 
 			'XenForo_DataWriter_Attachment',
@@ -26,6 +27,16 @@ class bdHeywatch_Listener
 		XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getmime'] = array(
 			'bdHeywatch_Helper_Template',
 			'getMime'
+		);
+
+		XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getbestvideoheight'] = array(
+			'bdHeywatch_Helper_Template',
+			'getBestVideoHeight'
+		);
+
+		XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getbestviewableheight'] = array(
+			'bdHeywatch_Helper_Template',
+			'getBestViewableHeight'
 		);
 	}
 

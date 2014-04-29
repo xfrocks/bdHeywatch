@@ -26,9 +26,14 @@ class bdHeywatch_XenForo_ControllerPublic_Misc extends XFCP_bdHeywatch_XenForo_C
 			return $this->responseNoPermission();
 		}
 
+		$requestPaths = XenForo_Application::get('requestPaths');
+		$fullUri = $requestPaths['fullUri'];
+		$curl = sprintf('curl -XPOST %s -d \'%s\'', $fullUri, $raw);
+
 		bdHeywatch_Logger::log($input['data_id'], 'callback', array(
 			'_REQUEST' => $_REQUEST,
-			'json' => $json
+			'json' => $json,
+			'curl' => $curl,
 		));
 
 		$this->getModelFromCache('XenForo_Model_Attachment')->bdHeywatch_processPing($input['data_id'], $this->_input, $json);

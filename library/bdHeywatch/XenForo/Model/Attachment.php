@@ -45,56 +45,81 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 
 		$dw = XenForo_DataWriter::create('XenForo_DataWriter_AttachmentData');
 		$dw->setExistingData($data, true);
-		$dw->bdHeywatch_updateOptions(array(
-			'ini' => $iniArray,
-			'robot' => $response,
-		));
+		$dw->bdHeywatch_updateOptions(array('ini' => $iniArray, ));
 		$dw->save();
 	}
 
 	public function bdHeywatch_processPing($dataId, XenForo_Input $input, array $json)
 	{
-		$jobs = $input->filterSingle('jobs', XenForo_Input::ARRAY_SIMPLE);
 		$formats = array();
 		$thumbnails = array();
 		$width = 0;
 		$height = 0;
 
-		foreach ($jobs as $format => $jobFileName)
+		if (!empty($json['ping']['data']['output_urls']))
 		{
-			if (!empty($json['ping']['data']['output_urls']))
+			foreach ($json['ping']['data']['output_urls'] as $taskId => $outputUrl)
 			{
-				foreach ($json['ping']['data']['output_urls'] as $jobId => $outputUrl)
+				if (strpos($taskId, 'post:preview/') === 0)
 				{
-					if ($jobId == 'post:preview/thumbnails')
+					if (is_array($outputUrl))
 					{
-						$thumbnails = array_values($outputUrl);
+						$thumbnails = array_merge($thumbnails, $outputUrl);
 					}
-					elseif (is_string($outputUrl) AND basename($outputUrl) == $jobFileName)
+					else
 					{
-						$formats[$format] = $outputUrl;
+						$thumbnails[] = $outputUrl;
 					}
+				}
+				elseif (strpos($taskId, 'post:job:') === 0)
+				{
+					$formats[$taskId] = array('output_url' => $outputUrl);
 				}
 			}
 		}
 
 		if (!empty($json['ping']['data']['task_results']))
 		{
-			foreach ($json['ping']['data']['task_results'] as $taskResult)
+			foreach ($json['ping']['data']['task_results'] as $taskResults)
 			{
-				if (isset($taskResult['get:video']))
+				foreach ($taskResults as $taskId => $taskResult)
 				{
-					// found our [get:video] job, parse it to find the original width and height
-					$getVideo = $taskResult['get:video'];
-
-					if (!empty($getVideo['specs']['video']['width']) AND !empty($getVideo['specs']['video']['height']))
+					if ($taskId === 'get:video')
 					{
-						$width = $getVideo['specs']['video']['width'];
-						$height = $getVideo['specs']['video']['height'];
+						if (!empty($taskResult['specs']['video']['width']) AND !empty($taskResult['specs']['video']['height']))
+						{
+							$width = doubleval($taskResult['specs']['video']['width']);
+							$height = doubleval($taskResult['specs']['video']['height']);
+						}
+					}
+					elseif (strpos($taskId, 'post:job:') === 0)
+					{
+						$taskId = preg_replace('/:ping$/', '', $taskId);
+
+						if (!empty($taskResult['format_id']))
+						{
+							$formats[$taskId]['format_id'] = $taskResult['format_id'];
+							$formats[$taskId]['height'] = bdHeywatch_Helper_Api::getHeightFromDynamicFormatId($taskResult['format_id']);
+						}
 					}
 				}
 			}
 		}
+
+		foreach ($formats as &$formatRef)
+		{
+			if (empty($formatRef['height']))
+			{
+				$formatRef['width'] = $width;
+				$formatRef['height'] = $height;
+			}
+			elseif ($height > 0)
+			{
+				$formatRef['width'] = floor($formatRef['height'] / $height * $width);
+			}
+		}
+
+		uasort($formats, create_function('$a, $b', 'return $a["height"] - $b["height"];'));
 
 		if (!empty($formats))
 		{
