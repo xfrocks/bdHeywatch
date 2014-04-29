@@ -31,9 +31,9 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 	{
 		$url = XenForo_Link::buildPublicLink('canonical:attachments', array_merge($attachment, $data));
 		$fileName = sprintf('%d_%s', $data['data_id'], preg_replace('#[^a-zA-Z0-9_\-]#', '', $data['filename']));
-		$formats = bdHeywatch_Option::get('outputFormats');
+		$outputFormats = bdHeywatch_Option::get('outputFormats');
 
-		$iniArray = bdHeywatch_Helper_Api::robotIniArray($url, $fileName, $formats, array('pingParams' => array(
+		$iniArray = bdHeywatch_Helper_Api::robotIniArray($url, $fileName, $outputFormats, array('pingParams' => array(
 				'time' => XenForo_Application::$time,
 				'data_id' => $data['data_id'],
 				'hash' => $this->bdHeywatch_calculateHash(XenForo_Application::$time, $data['data_id']),

@@ -68,7 +68,7 @@ class bdHeywatch_Helper_Api
 		return $height;
 	}
 
-	public static function robotIniArray($url, $fileName, $formats, $params = array())
+	public static function robotIniArray($url, $fileName, $outputFormats, $params = array())
 	{
 		$ini = array();
 		extract($params);
@@ -120,8 +120,14 @@ class bdHeywatch_Helper_Api
 		$ini['post:download']['post:preview/animation']['filename'] = $jobFileName;
 		$ini['post:download']['post:preview/animation']['width'] = '400';
 
-		foreach (array_values(array_unique($formats)) as $i => $format)
+		foreach (array_values(array_unique($outputFormats)) as $i => $outputFormat)
 		{
+			list($format, $formatParams) = self::_parseOutputFormat($outputFormat);
+			if (empty($format))
+			{
+				continue;
+			}
+
 			$jobId = sprintf('post:job:%d', $i);
 			$jobFileName = sprintf('%s_%s.%s', $fileName, md5($format . $uniqueId), self::getContainerFromDynamicFormatId($format));
 
@@ -139,6 +145,13 @@ class bdHeywatch_Helper_Api
 			}
 
 			$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
+
+			foreach ($formatParams as $formatParamKey => $formatParamValue)
+			{
+				// no validation whatsoever here
+				// and it is put at the very bottom so everything can be override
+				$ini['post:download'][$jobId][$formatParamKey] = $formatParamValue;
+			}
 		}
 
 		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
@@ -174,6 +187,27 @@ class bdHeywatch_Helper_Api
 	public static function robotJob($ini)
 	{
 		return self::_request('robot/job', $ini);
+	}
+
+	protected static function _parseOutputFormat($outputFormat)
+	{
+		$parts = explode(',', $outputFormat);
+		$format = utf8_trim(array_shift($parts));
+		$params = array();
+
+		foreach ($parts as $part)
+		{
+			$paramParts = explode('=', $part);
+			if (count($paramParts) == 2)
+			{
+				$params[utf8_trim($paramParts[0])] = utf8_trim($paramParts[1]);
+			}
+		}
+
+		return array(
+			$format,
+			$params
+		);
 	}
 
 	protected static function _request($path, $params, $method = 'POST', $apiKey = null)
