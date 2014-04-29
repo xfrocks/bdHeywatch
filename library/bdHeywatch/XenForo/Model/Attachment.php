@@ -12,7 +12,7 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 		{
 			$attachment['bdheywatch_options'] = array();
 		}
-		else
+		elseif (!is_array($attachment['bdheywatch_options']))
 		{
 			$attachment['bdheywatch_options'] = unserialize($attachment['bdheywatch_options']);
 		}
@@ -33,14 +33,23 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 		$fileName = sprintf('%d_%s', $data['data_id'], preg_replace('#[^a-zA-Z0-9_\-]#', '', $data['filename']));
 		$formats = bdHeywatch_Option::get('outputFormats');
 
-		$ini = bdHeywatch_Helper_Api::robotIni($url, $fileName, $formats, array('pingParams' => array(
+		$iniArray = bdHeywatch_Helper_Api::robotIniArray($url, $fileName, $formats, array('pingParams' => array(
 				'time' => XenForo_Application::$time,
 				'data_id' => $data['data_id'],
 				'hash' => $this->bdHeywatch_calculateHash(XenForo_Application::$time, $data['data_id']),
 			)));
+		$ini = bdHeywatch_Helper_Api::robotIniFromArray($iniArray);
 		$response = bdHeywatch_Helper_Api::robotJob($ini);
 
-		bdHeywatch_Logger::log($data['data_id'], $ini, $response);
+		bdHeywatch_Logger::log($data['data_id'], $iniArray, $response);
+
+		$dw = XenForo_DataWriter::create('XenForo_DataWriter_AttachmentData');
+		$dw->setExistingData($data, true);
+		$dw->bdHeywatch_updateOptions(array(
+			'ini' => $iniArray,
+			'robot' => $response,
+		));
+		$dw->save();
 	}
 
 	public function bdHeywatch_processPing($dataId, XenForo_Input $input, array $json)
@@ -91,7 +100,8 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 		{
 			$dw = XenForo_DataWriter::create('XenForo_DataWriter_AttachmentData');
 			$dw->setExistingData($dataId);
-			$dw->set('bdheywatch_options', array(
+			$dw->bdHeywatch_updateOptions(array(
+				'processed' => true,
 				'formats' => $formats,
 				'thumbnails' => $thumbnails,
 				'width' => $width,

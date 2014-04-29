@@ -41,7 +41,7 @@ class bdHeywatch_Helper_Api
 		return $container;
 	}
 
-	public static function robotIni($url, $fileName, $formats, $params = array())
+	public static function robotIniArray($url, $fileName, $formats, $params = array())
 	{
 		$ini = array();
 		extract($params);
@@ -110,7 +110,7 @@ class bdHeywatch_Helper_Api
 
 		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
 
-		return self::robotIniFromArray($ini);
+		return $ini;
 	}
 
 	public static function robotIniFromArray(array $array, $level = 0)

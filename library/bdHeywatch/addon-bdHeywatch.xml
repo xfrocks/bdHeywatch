@@ -79,6 +79,7 @@ sa-east-1=Sao Paolo</edit_format_params>
     <interface_groups/>
   </permissions>
   <phrases>
+    <phrase title="bdheywatch_video_x_is_being_processed" version_id="2" version_string="0.9.1"><![CDATA[Video is being processed.]]></phrase>
     <phrase title="option_bdHeywatch_apiKey" version_id="1" version_string="0.9-dev"><![CDATA[Heywatch API Key]]></phrase>
     <phrase title="option_bdHeywatch_apiKey_explain" version_id="1" version_string="0.9-dev"><![CDATA[Enter your API Key for Heywatch. You need to register at their website and verify account to have production API Key (or your transcoded video will be cut after 5 seconds). The API Key should be available at <a href="https://app.heywatch.com/settings/api_keys" target="_blank" tabindex="-1">this page</a>.]]></phrase>
     <phrase title="option_bdHeywatch_inputExtensions" version_id="1" version_string="0.9-dev"><![CDATA[Source Extensions]]></phrase>
@@ -99,24 +100,86 @@ sa-east-1=Sao Paolo</edit_format_params>
   <route_prefixes/>
   <style_properties/>
   <templates>
+    <template title="bdheywatch.css" version_id="2" version_string="0.9.1"><![CDATA[.bdHeywatch_video
+{
+	background: black;
+	color: white;
+}
+
+.bdHeywatch_video.being-processed
+{
+	height: 360px;
+	max-width: 100%;
+	width: 480px;
+}
+	.bdHeywatch_video.being-processed p
+	{
+		padding-top: 170px;
+		text-align: center;
+	}
+
+.bdHeywatch_videoSimple.being-processed .thumbnail .genericAttachment
+{
+	background: transparent url('{xen:property imagePath}/bdHeywatch/being-processed.gif') no-repeat 10px 10px;
+}]]></template>
+    <template title="bdheywatch_attached_file" version_id="2" version_string="0.9.1"><![CDATA[<xen:require css="bdheywatch.css" />
+
+<li class="attachment bdHeywatch_videoSimple{xen:if '!{$attachment.bdheywatch_options.processed}', ' being-processed'}" title="{$attachment.filename}">
+	<div class="boxModelFixer primaryContent">
+
+		<div class="thumbnail">
+			<a href="{xen:link attachments/watch, $attachment}" target="_blank" class="OverlayTrigger genericAttachment"></a>
+		</div>
+
+		<div class="attachmentInfo pairsJustified">
+			<h6 class="filename"><a href="{xen:link attachments/watch, $attachment}" target="_blank" class="OverlayTrigger">{$attachment.filename}</a></h6>
+			
+			<xen:if is="{$attachment.bdheywatch_options.processed}">
+				<dl><dt>{xen:phrase views}:</dt> <dd>{xen:number $attachment.view_count}</dd></dl>
+			<xen:else />
+				<dl><dt>{xen:phrase bdheywatch_video_x_is_being_processed, 'video={$attachment.filename}'}</dt><dd>&nbsp;</dd></dl>
+			</xen:if>
+		</div>
+	</div>
+</li>]]></template>
     <template title="bdheywatch_attached_videos" version_id="1" version_string="0.9-dev"><![CDATA[<xen:foreach loop="$videos" value="$video">
 	<xen:if is="{$video.bdheywatch_options}">
 		<xen:include template="bdheywatch_video" />
 	</xen:if>
 </xen:foreach>]]></template>
-    <template title="bdheywatch_video" version_id="1" version_string="0.9-dev"><![CDATA[<xen:require js="js/bdHeywatch/video-js/video.js" />
+    <template title="bdheywatch_video" version_id="2" version_string="0.9.1"><![CDATA[<xen:require css="bdheywatch.css" />
 
-<video id="video-{$video.attachment_id}"
-	   class="video-js vjs-default-skin"
-	   {xen:if '{$video.bdheywatch_options.thumbnails.0}', 'poster="{$video.bdheywatch_options.thumbnails.0}"'}
-	   {xen:if '{$video.bdheywatch_options.width} AND {$video.bdheywatch_options.height}', 'width="{$video.bdheywatch_options.width}" height="{$video.bdheywatch_options.height}"', 'width="720" height="480"'}
-	   controls preload="auto">
-	<xen:foreach loop="$video.bdheywatch_options.formats" key="$format" value="$url">
-		<source src="{$url}" type="{xen:helper bdHeywatch_getMime, $format}" />
-	</xen:foreach>
-</video>]]></template>
+<xen:if is="{$video.bdheywatch_options.processed}">
+	<xen:require js="js/bdHeywatch/video-js/video.js" />
+
+	<video id="video-{$video.attachment_id}"
+		   class="bdHeywatch_video video-js vjs-default-skin"
+		   {xen:if '{$video.bdheywatch_options.thumbnails.0}', 'poster="{$video.bdheywatch_options.thumbnails.0}"'}
+		   {xen:if '{$video.bdheywatch_options.width} AND {$video.bdheywatch_options.height}', 'width="{$video.bdheywatch_options.width}" height="{$video.bdheywatch_options.height}"', 'width="720" height="480"'}
+		   controls preload="auto">
+		<xen:foreach loop="$video.bdheywatch_options.formats" key="$format" value="$url">
+			<source src="{$url}" type="{xen:helper bdHeywatch_getMime, $format}" />
+		</xen:foreach>
+	</video>
+<xen:else />
+	<div id="video-{$video.attachment_id}" class="bdHeywatch_video being-processed">
+		<p>{xen:phrase bdheywatch_video_x_is_being_processed, 'video={$video.filename}'}</p>
+	</div>
+</xen:if>]]></template>
   </templates>
   <public_template_modifications>
+    <modification template="attached_files" modification_key="bdheywatch_attached_files" description="Insert being-processed CSS class for video files" execution_order="10" enabled="1" action="preg_replace">
+      <find><![CDATA[#(<xen:foreach loop="\$post.attachments" value="\$attachment">)(.+?)(</xen:foreach>)#s]]></find>
+      <replace><![CDATA[$1
+
+<xen:if is="{$attachment.bdheywatch_options}">
+	<xen:include template="bdheywatch_attached_file" />
+<xen:else />
+	$2
+</xen:if>
+
+$3]]></replace>
+    </modification>
     <modification template="bb_code_tag_attach" modification_key="bdheywatch_bb_code_tag_attach" description="Render video inserted into post" execution_order="10" enabled="1" action="preg_replace">
       <find><![CDATA[#^.+$#s]]></find>
       <replace><![CDATA[<xen:if is="{$validAttachment} AND {$canView} AND {$attachment.bdheywatch_options}">

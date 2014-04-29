@@ -22,6 +22,12 @@ class bdHeywatch_XenForo_ViewPublic_Thread_View extends XFCP_bdHeywatch_XenForo_
 						// empty array
 						continue;
 					}
+					
+					if (empty($post['attachments'][$attachmentId]['bdheywatch_options']['processed']))
+					{
+						// not yet processed
+						continue;
+					}
 
 					// pick it up and render at the bottom of the post
 					$post['bdHeywatch_videos'][$attachmentId] = $post['attachments'][$attachmentId];

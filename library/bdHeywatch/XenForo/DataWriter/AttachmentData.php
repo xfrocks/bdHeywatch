@@ -2,6 +2,23 @@
 
 class bdHeywatch_XenForo_DataWriter_AttachmentData extends XFCP_bdHeywatch_XenForo_DataWriter_AttachmentData
 {
+	public function bdHeywatch_updateOptions(array $options)
+	{
+		$existingOptions = $this->get('bdheywatch_options');
+		if (empty($existingOptions))
+		{
+			$existingOptions = array();
+		}
+		elseif (!is_array($existingOptions))
+		{
+			$existingOptions = unserialize($existingOptions);
+		}
+
+		$options = array_merge($existingOptions, $options);
+
+		return $this->set('bdheywatch_options', $options);
+	}
+
 	protected function _getFields()
 	{
 		$fields = parent::_getFields();
