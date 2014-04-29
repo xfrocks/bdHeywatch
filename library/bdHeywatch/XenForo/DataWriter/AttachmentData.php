@@ -2,17 +2,24 @@
 
 class bdHeywatch_XenForo_DataWriter_AttachmentData extends XFCP_bdHeywatch_XenForo_DataWriter_AttachmentData
 {
+	public function bdHeywatch_getOptions()
+	{
+		$options = $this->get('bdheywatch_options');
+		if (empty($options))
+		{
+			$options = array();
+		}
+		elseif (!is_array($options))
+		{
+			$options = unserialize($options);
+		}
+
+		return $options;
+	}
+
 	public function bdHeywatch_updateOptions(array $options)
 	{
-		$existingOptions = $this->get('bdheywatch_options');
-		if (empty($existingOptions))
-		{
-			$existingOptions = array();
-		}
-		elseif (!is_array($existingOptions))
-		{
-			$existingOptions = unserialize($existingOptions);
-		}
+		$existingOptions = $this->bdHeywatch_getOptions();
 
 		$options = array_merge($existingOptions, $options);
 
@@ -41,6 +48,15 @@ class bdHeywatch_XenForo_DataWriter_AttachmentData extends XFCP_bdHeywatch_XenFo
 		}
 
 		return parent::_postSaveAfterTransaction();
+	}
+
+	protected function _postDelete()
+	{
+		$options = $this->bdHeywatch_getOptions();
+
+		$this->_getAttachmentModel()->bdHeywatch_processDeletion($options);
+
+		return parent::_postDelete();
 	}
 
 }

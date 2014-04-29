@@ -117,6 +117,8 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 			{
 				$formatRef['width'] = floor($formatRef['height'] / $height * $width);
 			}
+
+			// TODO: support HTTPS installation?
 		}
 
 		uasort($formats, create_function('$a, $b', 'return $a["height"] - $b["height"];'));
@@ -136,9 +138,56 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
 		}
 	}
 
+	public function bdHeywatch_processDeletion($options)
+	{
+		if (!empty($options['thumbnails']))
+		{
+			foreach ($options['thumbnails'] as $thumbnail)
+			{
+				$this->_bdHeywatch_deleteOutputUrl($thumbnail);
+			}
+		}
+
+		if (!empty($options['formats']))
+		{
+			foreach ($options['formats'] as $format)
+			{
+				if (is_string($format))
+				{
+					// old version store output url directly
+					$this->_bdHeywatch_deleteOutputUrl($format);
+				}
+				elseif (!empty($format['output_url']))
+				{
+					$this->_bdHeywatch_deleteOutputUrl($format['output_url']);
+				}
+			}
+		}
+	}
+
 	public function bdHeywatch_calculateHash($time, $dataId)
 	{
 		return md5($time . $dataId . XenForo_Application::getConfig()->get('globalSalt'));
+	}
+
+	protected function _bdHeywatch_deleteOutputUrl($outputUrl)
+	{
+		if (preg_match('#//(?<bucket>.+)\.s3\.amazonaws\.com/(?<path>.+)$#', $outputUrl, $matches))
+		{
+			$bucket = $matches['bucket'];
+			$path = $matches['path'];
+
+			$s3Bucket = bdHeywatch_Option::get('s3Bucket');
+			if ($s3Bucket !== $bucket)
+			{
+				throw new XenForo_Exception(sprintf('S3 buckets mismatched %s and %s', $bucket, $s3Bucket));
+			}
+
+			$connection = new Zend_Service_Amazon_S3(bdHeywatch_Option::get('s3Key'), bdHeywatch_Option::get('s3Secret'));
+			return $connection->removeObject($bucket . '/' . $path);
+		}
+
+		throw new XenForo_Exception(sprintf('Unrecognized output url %s', $outputUrl));
 	}
 
 }
