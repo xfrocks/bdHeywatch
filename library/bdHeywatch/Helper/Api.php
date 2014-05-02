@@ -119,8 +119,10 @@ class bdHeywatch_Helper_Api
 		$ini['post:download']['post:preview/animation']['output_url'] = sprintf('${robot:env::output_url}/%s', $jobDirectory);
 		$ini['post:download']['post:preview/animation']['filename'] = $jobFileName;
 		$ini['post:download']['post:preview/animation']['width'] = '400';
+		$containerAndHeights = array();
+		$i = 0;
 
-		foreach (array_values(array_unique($outputFormats)) as $i => $outputFormat)
+		foreach (array_unique($outputFormats) as $outputFormat)
 		{
 			list($format, $formatParams) = self::_parseOutputFormat($outputFormat);
 			if (empty($format))
@@ -128,8 +130,10 @@ class bdHeywatch_Helper_Api
 				continue;
 			}
 
+			$i++;
 			$jobId = sprintf('post:job:%d', $i);
-			$jobFileName = sprintf('%s_%s.%s', $fileName, md5($format . $uniqueId), self::getContainerFromDynamicFormatId($format));
+			$jobContainer = self::getContainerFromDynamicFormatId($format);
+			$jobFileName = sprintf('%s_%s.%s', $fileName, md5($format . $uniqueId), $jobContainer);
 
 			$ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
 			$ini['post:download'][$jobId]['format_id'] = $format;
@@ -144,6 +148,8 @@ class bdHeywatch_Helper_Api
 				$ini['post:download'][$jobId]['_skip_if'] = sprintf('${get:video::specs.video.height} < %d', $jobHeight);
 			}
 
+			$containerAndHeights[$jobContainer][$jobHeight] = $formatParams;
+
 			$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
 
 			foreach ($formatParams as $formatParamKey => $formatParamValue)
@@ -151,6 +157,40 @@ class bdHeywatch_Helper_Api
 				// no validation whatsoever here
 				// and it is put at the very bottom so everything can be override
 				$ini['post:download'][$jobId][$formatParamKey] = $formatParamValue;
+			}
+		}
+
+		foreach ($containerAndHeights as $jobContainer => $jobHeights)
+		{
+			if (isset($jobHeights[0]))
+			{
+				// this container has an output format with no specific height
+				// we don't have to add new transcoding here
+				continue;
+			}
+
+			ksort($jobHeights);
+
+			foreach ($jobHeights as $jobHeight => $formatParams)
+			{
+				// this is the smallest height...
+				$i++;
+				$jobId = sprintf('post:job:%d', $i);
+				$jobFileName = sprintf('%s_%s.%s', $fileName, md5($jobContainer . $uniqueId), $jobContainer);
+
+				$ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
+				$ini['post:download'][$jobId]['format_id'] = $jobContainer;
+
+				$ini['post:download'][$jobId]['keep_video_size'] = 'true';
+
+				// only transcode this if the video is smaller than the smallest height specified
+				$ini['post:download'][$jobId]['_skip_if'] = sprintf('${get:video::specs.video.height} >= %d', $jobHeight);
+
+				$ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
+
+				$ini['post:download'][$jobId] = array_merge($ini['post:download'][$jobId], $formatParams);
+
+				break;
 			}
 		}
 
