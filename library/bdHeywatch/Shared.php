@@ -2,5 +2,5 @@
 
 class bdHeywatch_Shared
 {
-	public static $dataCandidates = array();
+    public static $dataCandidates = array();
 }

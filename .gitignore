@@ -2,3 +2,4 @@
 *.devhelper
 library/bdHeywatch/DevHelper/Generated
 FileSums.php
+library/bdHeywatch/DevHelper/XFCP
