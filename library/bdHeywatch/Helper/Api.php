@@ -196,6 +196,23 @@ class bdHeywatch_Helper_Api
 
 		$ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
 
+        if (XenForo_Application::debugMode()) {
+            $config = XenForo_Application::getConfig();
+            $pingUrl = $config->get('bdHeywatch_pingUrl');
+
+            if (!empty($pingUrl)) {
+                foreach ($pingParams as $key => $value) {
+                    if (strpos($pingUrl, '?') === false) {
+                        $pingUrl .= '?';
+                    } else {
+                        $pingUrl .= '&';
+                    }
+                    $pingUrl .= sprintf('%s=%s', $key, rawurlencode($value));
+                }
+                $ini['robot:ping']['url'] = $pingUrl;
+            }
+        }
+
 		return $ini;
 	}
 
