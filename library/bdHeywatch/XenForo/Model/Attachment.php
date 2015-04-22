@@ -15,9 +15,13 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
         }
 
         if (empty($attachment['thumbnailUrl']) AND !empty($attachment['bdheywatch_options']['thumbnails'][0])) {
-            // TODO: find a way to do this
-            // $attachment['thumbnailUrl'] =
-            // $attachment['bdheywatch_options']['thumbnails'][0];
+            if (method_exists('bdImage_Integration', 'buildThumbnailLink')) {
+                $attachment['thumbnailUrl'] = call_user_func(
+                    array('bdImage_Integration', 'buildThumbnailLink'),
+                    $attachment['bdheywatch_options']['thumbnails'][0],
+                    XenForo_Application::getOptions()->get('attachmentThumbnailDimensions')
+                );
+            }
         }
 
         return $attachment;
