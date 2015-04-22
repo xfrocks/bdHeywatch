@@ -23,17 +23,17 @@ class bdHeywatch_Listener
 
     public static function init_dependencies(XenForo_Dependencies_Abstract $dependencies, array $data)
     {
-        XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getmime'] = array(
+        XenForo_Template_Helper_Core::$helperCallbacks[strtolower('bdHeywatch_getMimeType')] = array(
             'bdHeywatch_Helper_Template',
-            'getMime'
+            'getMimeType'
         );
 
-        XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getbestvideoheight'] = array(
+        XenForo_Template_Helper_Core::$helperCallbacks[strtolower('bdHeywatch_getBestVideoHeight')] = array(
             'bdHeywatch_Helper_Template',
             'getBestVideoHeight'
         );
 
-        XenForo_Template_Helper_Core::$helperCallbacks['bdheywatch_getbestviewableheight'] = array(
+        XenForo_Template_Helper_Core::$helperCallbacks[strtolower('bdHeywatch_getBestViewableHeight')] = array(
             'bdHeywatch_Helper_Template',
             'getBestViewableHeight'
         );

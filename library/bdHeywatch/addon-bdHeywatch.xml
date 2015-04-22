@@ -213,7 +213,7 @@ sa-east-1=Sao Paolo</edit_format_params>
 		<xen:include template="bdheywatch_video" />
 	</div>
 </div>]]></template>
-    <template title="bdheywatch_video" version_id="2" version_string="0.9.1"><![CDATA[<xen:require css="bdheywatch.css" />
+    <template title="bdheywatch_video" version_id="4" version_string="0.9.3"><![CDATA[<xen:require css="bdheywatch.css" />
 
 <xen:if is="{$video.bdheywatch_options.processed}">
 	<xen:set var="$bestVideoHeight">{xen:helper bdHeywatch_getBestVideoHeight, $video.bdheywatch_options.formats}</xen:set>
@@ -232,10 +232,12 @@ sa-east-1=Sao Paolo</edit_format_params>
 				   controls preload="auto">
 				<xen:contentcheck>
 					<xen:foreach loop="$video.bdheywatch_options.formats" value="$format">
+						<xen:set var="$mimeType">{xen:helper bdHeywatch_getMimeType, $format}</xen:set>
 						<xen:if is="{$format.output_url}
+									AND {$mimeType}
 									AND {$format.height} <= {$bestViewableHeight}
 									AND {$format.height} == {$viewHeight}">
-							<source src="{$format.output_url}" type="{xen:helper bdHeywatch_getMime, $format.format_id}" />
+							<source src="{$format.output_url}" type="{$mimeType}" />
 						</xen:if>
 					</xen:foreach>
 				</xen:contentcheck>

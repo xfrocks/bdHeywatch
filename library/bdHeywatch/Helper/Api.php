@@ -22,6 +22,7 @@ class bdHeywatch_Helper_Api
             'mov' => array('dnxhd'),
             'flv' => array('flash'),
             'ogg' => array('theora'),
+            'webm' => array('matroska'),
         );
 
         $parts = explode('_', $format);
@@ -60,117 +61,161 @@ class bdHeywatch_Helper_Api
         return $height;
     }
 
-    public static function robotIniArray($url, $fileName, $outputFormats, $params = array())
+    public static function prepareConfigParams($url, $fileName, $outputFormats, $params = array())
     {
-        $ini = array();
-        extract($params);
+        $configParams = array(
+            // http://www.heywatchencoding.com/docs/api/config/settings
+            'source' => $url,
 
-        if (empty($s3Key)) {
-            $s3Key = bdHeywatch_Option::get('s3Key');
+            // http://www.heywatchencoding.com/docs/tutorials/receiving-webhooks
+            'webhook' => sprintf('%s, metadata=true', self::buildPingUrl($params)),
+
+            'variables' => array(
+
+                // output prefix to be used in all outputs later
+                'outputPrefix' => self::getOutputPrefix($params),
+
+            ),
+
+            'outputs' => array(),
+        );
+        $configOutputs =& $configParams['outputs'];
+
+        if (true) {
+            // animation http://www.heywatchencoding.com/docs/api/config/previews
+            $configOutputs['gif_400'] = self::getOutput($url, $fileName, 'gif');
         }
-        if (empty($s3Key)) {
-            throw new XenForo_Exception('s3Key not found');
-        }
 
-        if (empty($s3Secret)) {
-            $s3Secret = bdHeywatch_Option::get('s3Secret');
-        }
-        if (empty($s3Secret)) {
-            throw new XenForo_Exception('s3Secret not found');
-        }
-
-        if (empty($s3Bucket)) {
-            $s3Bucket = bdHeywatch_Option::get('s3Bucket');
-        }
-        if (empty($s3Bucket)) {
-            throw new XenForo_Exception('s3Bucket not found');
-        }
-
-        if (empty($pingParams)) {
-            $pingParams = array();
-        }
-        $jobDirectory = date('Y/m', XenForo_Application::$time);
-        $uniqueId = XenForo_Application::getConfig()->get('globalSalt') . XenForo_Application::$time;
-
-        $ini['robot:env']['output_url'] = sprintf('s3://%s:%s@%s', $s3Key, $s3Secret, $s3Bucket);
-
-        $ini['post:download']['url'] = $url;
-
-        $ini['post:download']['get:video']['id'] = '${post:download:ping::video_id}';
-
-        $format = 'animation';
-        $jobFileName = sprintf('%s_%s', $fileName, md5($format . $uniqueId));
-        $ini['post:download']['post:preview/animation']['media_id'] = '${post:download:ping::video_id}';
-        $ini['post:download']['post:preview/animation']['output_url'] = sprintf('${robot:env::output_url}/%s', $jobDirectory);
-        $ini['post:download']['post:preview/animation']['filename'] = $jobFileName;
-        $ini['post:download']['post:preview/animation']['width'] = '400';
         $containerAndHeights = array();
-        $i = 0;
-
         foreach (array_unique($outputFormats) as $outputFormat) {
             list($format, $formatParams) = self::_parseOutputFormat($outputFormat);
             if (empty($format)) {
                 continue;
             }
 
-            $i++;
-            $jobId = sprintf('post:job:%d', $i);
-            $jobContainer = self::getContainerFromDynamicFormatId($format);
-            $jobFileName = sprintf('%s_%s.%s', $fileName, md5($format . $uniqueId), $jobContainer);
+            // video http://www.heywatchencoding.com/docs/api/config/video-encoding
+            $formatContainer = self::getContainerFromDynamicFormatId($format);
+            $configOutputs[$format] = self::getOutput($url, $fileName, $format, $formatContainer);
 
-            $ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
-            $ini['post:download'][$jobId]['format_id'] = $format;
-
-            $jobHeight = self::getHeightFromDynamicFormatId($format);
-            if ($jobHeight == 0) {
-                $ini['post:download'][$jobId]['keep_video_size'] = 'true';
+            $formatHeight = self::getHeightFromDynamicFormatId($format);
+            if ($formatHeight == 0) {
+                if (!isset($formatParams['keep'])) {
+                    $formatParams['keep'] = 'resolution';
+                }
             } else {
-                $ini['post:download'][$jobId]['_skip_if'] = sprintf('${get:video::specs.video.height} < %d', $jobHeight);
+                if (!isset($formatParams['if'])) {
+                    $formatParams['if'] = sprintf('$source_height >= %d', $formatHeight);
+                }
             }
-
-            $containerAndHeights[$jobContainer][$jobHeight] = $formatParams;
-
-            $ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
 
             foreach ($formatParams as $formatParamKey => $formatParamValue) {
-                // no validation whatsoever here
-                // and it is put at the very bottom so everything can be override
-                $ini['post:download'][$jobId][$formatParamKey] = $formatParamValue;
+                $configOutputs[$format] .= sprintf(', %s=%s', $formatParamKey, $formatParamValue);
+            }
+
+            $containerAndHeights[$formatContainer][] = $formatHeight;
+        }
+
+        foreach ($containerAndHeights as $formatContainer => $formatHeights) {
+            sort($formatHeights);
+            $formatHeight = array_shift($formatHeights);
+
+            if ($formatHeight > 0) {
+                // the smallest height is non-zero...
+                // output one additional video in this format if the video is too small
+                // we have to do this to make sure all format has at least one output
+                $configOutputs[$formatContainer] = sprintf(
+                    '%s, keep=resolution, if=$source_height < %d',
+                    self::getOutput($url, $fileName, $formatContainer),
+                    $formatHeight
+                );
             }
         }
 
-        foreach ($containerAndHeights as $jobContainer => $jobHeights) {
-            if (isset($jobHeights[0])) {
-                // this container has an output format with no specific height
-                // we don't have to add new transcoding here
-                continue;
-            }
+        return $configParams;
+    }
 
-            ksort($jobHeights);
+    public static function buildConfig(array $array)
+    {
+        $lines = array();
 
-            foreach ($jobHeights as $jobHeight => $formatParams) {
-                // this is the smallest height...
-                $i++;
-                $jobId = sprintf('post:job:%d', $i);
-                $jobFileName = sprintf('%s_%s.%s', $fileName, md5($jobContainer . $uniqueId), $jobContainer);
-
-                $ini['post:download'][$jobId]['video_id'] = '${post:download:ping::video_id}';
-                $ini['post:download'][$jobId]['format_id'] = $jobContainer;
-
-                $ini['post:download'][$jobId]['keep_video_size'] = 'true';
-
-                // only transcode this if the video is smaller than the smallest height specified
-                $ini['post:download'][$jobId]['_skip_if'] = sprintf('${get:video::specs.video.height} >= %d', $jobHeight);
-
-                $ini['post:download'][$jobId]['output_url'] = sprintf('${robot:env::output_url}/%s/%s', $jobDirectory, $jobFileName);
-
-                $ini['post:download'][$jobId] = array_merge($ini['post:download'][$jobId], $formatParams);
-
-                break;
+        foreach ($array as $key => $value) {
+            switch ($key) {
+                case 'variables':
+                    foreach ($value as $varKey => $varValue) {
+                        $lines[] = sprintf('var %s = %s', $varKey, $varValue);
+                    }
+                    $lines[] = '';
+                    break;
+                case 'outputs':
+                    foreach ($value as $outputKey => $outputValue) {
+                        $lines[] = sprintf('-> %s = %s', $outputKey, $outputValue);
+                    }
+                    $lines[] = '';
+                    break;
+                default:
+                    $lines[] = sprintf('set %s = %s', $key, $value);
             }
         }
 
-        $ini['robot:ping']['url'] = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
+        return implode("\n", $lines);
+    }
+
+    public static function createJob($config)
+    {
+        return self::_request('job', $config);
+    }
+
+    public static function getOutputPrefix(array $params)
+    {
+        $s3Key = bdHeywatch_Option::get('s3Key');
+        if (empty($s3Key)) {
+            throw new XenForo_Exception('s3Key not found');
+        }
+
+        $s3Secret = bdHeywatch_Option::get('s3Secret');
+        if (empty($s3Secret)) {
+            throw new XenForo_Exception('s3Secret not found');
+        }
+
+        $s3Bucket = bdHeywatch_Option::get('s3Bucket');
+        if (empty($s3Bucket)) {
+            throw new XenForo_Exception('s3Bucket not found');
+        }
+
+        if (!empty($params['outputPrefix'])) {
+            $path = '/' . trim($params['outputPrefix'], '/');
+        } else {
+            $path = '';
+        }
+
+        return sprintf('s3://%s:%s@%s/%s%s', $s3Key, $s3Secret, $s3Bucket, date('Y/m', XenForo_Application::$time), $path);
+    }
+
+    public static function getOutput($url, $fileName, $format, $extension = null)
+    {
+        if ($extension === null) {
+            $extension = $format;
+        }
+
+        $uniqueFileName = sprintf(
+            '%s_%s.%s',
+            $fileName,
+            md5($url . $format . XenForo_Application::getConfig()->get('globalSalt')),
+            $extension
+        );
+
+        return sprintf('$outputPrefix/%s', $uniqueFileName);
+    }
+
+    public static function buildPingUrl(array $params)
+    {
+        if (!empty($params['pingParams'])) {
+            $pingParams = $params['pingParams'];
+        } else {
+            $pingParams = array();
+        }
+
+        $pingUrl = XenForo_Link::buildPublicLink('canonical:misc/heywatch/robot-ping', '', $pingParams);
 
         if (XenForo_Application::debugMode()) {
             $config = XenForo_Application::getConfig();
@@ -185,36 +230,10 @@ class bdHeywatch_Helper_Api
                     }
                     $pingUrl .= sprintf('%s=%s', $key, rawurlencode($value));
                 }
-                $ini['robot:ping']['url'] = $pingUrl;
             }
         }
 
-        return $ini;
-    }
-
-    public static function robotIniFromArray(array $array, $level = 0)
-    {
-        $str = '';
-        $padding = str_repeat(' ', $level * 2);
-
-        foreach ($array as $section => $values) {
-            $str .= sprintf("\n%s[%s]\n", $padding, $section);
-
-            foreach ($values as $key => $value) {
-                if (!is_array($value)) {
-                    $str .= sprintf("%s%s = %s\n", $padding, $key, $value);
-                } else {
-                    $str .= self::robotIniFromArray(array($key => $value), $level + 1);
-                }
-            }
-        }
-
-        return $str;
-    }
-
-    public static function robotJob($ini)
-    {
-        return self::_request('robot/job', $ini);
+        return $pingUrl;
     }
 
     protected static function _parseOutputFormat($outputFormat)
@@ -240,7 +259,7 @@ class bdHeywatch_Helper_Api
     {
         try {
             $uri = call_user_func_array('sprintf', array(
-                'https://heywatch.com/%s.json',
+                'https://heywatch.com/api/v1/%s',
                 $path,
             ));
             $client = XenForo_Helper_Http::getClient($uri);
@@ -257,7 +276,7 @@ class bdHeywatch_Helper_Api
             if (empty($apiKey)) {
                 throw new XenForo_Exception('apiKey not found');
             }
-            $client->setAuth('HW-API-Key', $apiKey);
+            $client->setAuth($apiKey);
 
             if ($method === 'GET') {
                 $client->setParameterGet($params);

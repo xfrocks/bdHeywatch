@@ -29,20 +29,22 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
         $fileName = sprintf('%d_%s', $data['data_id'], preg_replace('#[^a-zA-Z0-9_\-]#', '', $data['filename']));
         $outputFormats = bdHeywatch_Option::get('outputFormats');
 
-        $iniArray = bdHeywatch_Helper_Api::robotIniArray($url, $fileName, $outputFormats, array('pingParams' => array(
-            'time' => XenForo_Application::$time,
-            'data_id' => $data['data_id'],
-            'hash' => $this->bdHeywatch_calculateHash(XenForo_Application::$time, $data['data_id']),
-        )));
-        $ini = bdHeywatch_Helper_Api::robotIniFromArray($iniArray);
-        $response = bdHeywatch_Helper_Api::robotJob($ini);
+        $configParams = bdHeywatch_Helper_Api::prepareConfigParams($url, $fileName, $outputFormats, array(
+            'pingParams' => array(
+                'time' => XenForo_Application::$time,
+                'data_id' => $data['data_id'],
+                'hash' => $this->bdHeywatch_calculateHash(XenForo_Application::$time, $data['data_id']),
+            ),
+        ));
+        $config = bdHeywatch_Helper_Api::buildConfig($configParams);
+        $response = bdHeywatch_Helper_Api::createJob($config);
 
-        bdHeywatch_Logger::log($data['data_id'], $iniArray, $response);
+        bdHeywatch_Logger::log($data['data_id'], $configParams, $response);
 
         /** @var bdHeywatch_XenForo_DataWriter_AttachmentData $dw */
         $dw = XenForo_DataWriter::create('XenForo_DataWriter_AttachmentData');
         $dw->setExistingData($data, true);
-        $dw->bdHeywatch_updateOptions(array('ini' => $iniArray,));
+        $dw->bdHeywatch_updateOptions(array('configParams' => $configParams));
         $dw->save();
     }
 
@@ -53,6 +55,7 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
         $width = 0;
         $height = 0;
 
+        // robot api (deprecated), kept for backward compatibility
         if (!empty($json['ping']['data']['output_urls'])) {
             foreach ($json['ping']['data']['output_urls'] as $taskId => $outputUrl) {
                 if (strpos($taskId, 'post:preview/') === 0) {
@@ -67,6 +70,7 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
             }
         }
 
+        // robot api (deprecated), kept for backward compatibility
         if (!empty($json['ping']['data']['task_results'])) {
             foreach ($json['ping']['data']['task_results'] as $taskResults) {
                 foreach ($taskResults as $taskId => $taskResult) {
@@ -87,12 +91,47 @@ class bdHeywatch_XenForo_Model_Attachment extends XFCP_bdHeywatch_XenForo_Model_
             }
         }
 
+        // 2015-01-08 api
+        if (!empty($json['output_urls'])) {
+            foreach ($json['output_urls'] as $outputId => $outputUrl) {
+                if (strpos($outputId, 'gif') === 0) {
+                    $thumbnails[] = $outputUrl;
+                } else {
+                    $formats[$outputId] = array(
+                        'output_url' => $outputUrl,
+                    );
+                }
+            }
+        }
+
+        // 2015-04-07 api
+        if (!empty($json['metadata'])) {
+            foreach ($json['metadata'] as $metadataId => $metadata) {
+                if ($metadataId === 'source') {
+                    if (!empty($metadata['streams']['video']['width']) && !empty($metadata['streams']['video']['height'])) {
+                        $width = doubleval($metadata['streams']['video']['width']);
+                        $height = doubleval($metadata['streams']['video']['height']);
+                    }
+                } elseif (isset($formats[$metadataId])) {
+                    if (!empty($metadata['format']['name'])) {
+                        $formats[$metadataId]['format_id'] = $metadata['format']['name'];
+                    }
+
+                    if (!empty($metadata['format']['mime_type'])) {
+                        $formats[$metadataId]['mime_type'] = $metadata['format']['mime_type'];
+                    }
+
+                    if (!empty($metadata['streams']['video'])) {
+                        $formats[$metadataId] = array_merge($formats[$metadataId], $metadata['streams']['video']);
+                    }
+                }
+            }
+        }
+
         foreach ($formats as &$formatRef) {
             if (empty($formatRef['height'])) {
                 $formatRef['width'] = $width;
                 $formatRef['height'] = $height;
-            } elseif ($height > 0) {
-                $formatRef['width'] = floor($formatRef['height'] / $height * $width);
             }
 
             // TODO: support HTTPS installation?

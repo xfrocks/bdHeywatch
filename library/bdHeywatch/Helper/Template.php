@@ -36,11 +36,18 @@ class bdHeywatch_Helper_Template
         return $height;
     }
 
-    public static function getMime($format)
+    public static function getMimeType(array $format)
     {
-        // TODO: verify this works
-        $container = bdHeywatch_Helper_Api::getContainerFromDynamicFormatId($format);
-        return sprintf('video/%s', $container);
+        if (!empty($format['mime_type'])) {
+            return $format['mime_type'];
+        }
+
+        if (!empty($format['format_id'])) {
+            $container = bdHeywatch_Helper_Api::getContainerFromDynamicFormatId($format['format_id']);
+            return sprintf('video/%s', $container);
+        }
+
+        return '';
     }
 
 }
